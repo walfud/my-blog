@@ -6,12 +6,17 @@
   </tr>
 
   <tr>
-    <th rowspan="3">Debug & Run</th>
+    <th rowspan="1">光标定位</th>
+    <td>Ctrl + Cmd + ←/→</td>
+    <td>跳转到上/下一个位置</td>
+  </tr>
+
+  <tr>
+    <th rowspan="9">Debug & Run</th>
     <td>Cmd + R</td>
     <td>编译运行</td>
   </tr>
   <tr>
-    <th rowspan="3">Debug & Run</th>
     <td>Cmd + .</td>
     <td>停止</td>
   </tr>

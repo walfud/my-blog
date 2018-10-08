@@ -21,7 +21,7 @@ app.use(mount('/dist', serve('./dist/')))
 const router = new Router()
 // 页面
 router.get('/', async ctx => {
-  const directoryData = await getDirectoryData(Config.postsDir)
+  const directoryData = await getDirectoryData(Config.postDir)
   const content = renderToString(<App data={directoryData} />)
 
   ctx.body = `
@@ -37,7 +37,7 @@ router.get('/', async ctx => {
     `
 })
   .get('/post/:path*', async ctx => {
-    const postPath = path.join(Config.postsDir, ctx.params.path)
+    const postPath = path.join(Config.postDir, ctx.params.path)
     try {
       const rawMd = await pify(fs.readFile)(postPath, { encoding: 'utf-8' })
       const md = resolveLink(rawMd, path.parse(ctx.params.path).dir)
@@ -61,10 +61,10 @@ router.get('/', async ctx => {
   })
 // api
 router.get('/api/directory', async ctx => {
-  ctx.body = await getDirectoryData(Config.postsDir)
+  ctx.body = await getDirectoryData(Config.postDir)
 })
   .get('/api/post/:path*', async ctx => {
-    const postPath = path.join(Config.postsDir, ctx.params.path)
+    const postPath = path.join(Config.postDir, ctx.params.path)
     try {
       const rawMd = await pify(fs.readFile)(postPath, { encoding: 'utf-8' })
       const md = resolveLink(rawMd, path.parse(ctx.params.path).dir)
@@ -75,7 +75,7 @@ router.get('/api/directory', async ctx => {
     }
   })
   .get('/api/asset/:path*', async ctx => {
-    const assetPath = path.join(Config.postsDir, ctx.params.path)
+    const assetPath = path.join(Config.postDir, ctx.params.path)
     try {
       const buf = await pify(fs.readFile)(assetPath)
       ctx.body = buf
@@ -99,7 +99,7 @@ async function getDirectoryData(dir) {
     .filter(Boolean)
   for (let i of subs) {
     const iPath = path.join(dir, i)
-    const relPath = path.relative(Config.postsDir, iPath)
+    const relPath = path.relative(Config.postDir, iPath)
     const stats = await pify(fs.stat)(iPath)
     if (stats.isFile()) {
       const parsed = path.parse(i)

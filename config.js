@@ -6,5 +6,6 @@ export default {
     host: hostUrl,
     hostname: url.parse(hostUrl).hostname,
     port: url.parse(hostUrl).port,
-    postsDir: './posts/',
+    
+    postDir: './posts/',
 }
