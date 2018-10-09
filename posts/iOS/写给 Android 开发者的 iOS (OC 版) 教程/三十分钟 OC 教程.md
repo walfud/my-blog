@@ -1,0 +1,828 @@
+OC 语法在现在看来很怪异. 是因为它主要语法结构来自 Smalltalk, 而其底层又是将其编译成 C. 五分钟来总结一下 OC 的常见语法.
+
+# 变量类型 & 集合 & 常用类
+### 变量类型
+OC 中有原始类型(Primitive) 和对象类型. 类似于 Java 中的 `int` 与 `Integer` 的关系. 
+
+标量有 `123`, `"I'm string"` 等等, 通过加 `@` 前缀转换成响应的对象类型, 如 `@123`, `@"I'm string"`. '@' 是语法糖, 内部调用了响应的构造函数而已.
+
+##### 字符串 (NSString)
+OC 中使用 `NSString *str = @"Hello World"` 定义字符串. 正如 Java, NSString 也是不可变的. 
+
+常用的方法有:
+```Objective-C
+NSString *str = @"Hello World";
+NSString *strFromCStr = [[NSString alloc] initWithCString:"Hello World!" encoding:NSUTF8StringEncoding];
+NSString *strFromCStr2 = [NSString stringWithCString:"Hello World!" encoding:NSUTF8StringEncoding];
+
+// 格式化: https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/Strings/Articles/formatSpecifiers.html#//apple_ref/doc/uid/TP40004265
+NSString *magicString = [NSString stringWithFormat:@"The magic number is %i", 123];
+```
+
+OC 中同时存在 C 语言的 `char *cStr = "..."` 传统字符串指针与包装类 NSString. 他们之间的转换如下:
+```Objective-C
+// "..." 代表传统 C 字符串
+// @"..." 代表 OC 的 NSString 对象
+
+// char * => NSString
+NSString *foo = [NSString stringWithCString:"Some C String..." encoding:NSUTF8StringEncoding];
+
+// NSString => char *
+char *bar = [@"I'm OC NSSTring" UTF8String];
+```
+
+如果需要可变字符串, 可以使用 NSMutableString:
+```Objective-C
+NSMutableString *name = [NSMutableString stringWithString:@"John"];
+[name appendString:@"ny"];   // same object, but now represents "Johnny"
+```
+
+##### 数字 (NSNumber)
+不同于 Java, 在 OC 中使用 NSNumber 代表所有数字, 也是不可变的. 例如:
+```Objective-C
+NSNumber *magicNumber = @42;        // [[NSNumber alloc] initWithInt:42];
+NSNumber *unsignedNumber = @42u;    // [[NSNumber alloc] initWithUnsignedInt:42u];
+NSNumber *longNumber = @42l;        // [[NSNumber alloc] initWithLong:42l];
+
+NSNumber *boolNumber = @YES;        // [[NSNumber alloc] initWithBOOL:YES];
+
+NSNumber *simpleFloat = @3.14f;     // [NSNumber numberWithFloat:3.14f];
+NSNumber *betterDouble = @3.1415926535; // [NSNumber numberWithDouble:3.1415926535];
+
+NSNumber *someChar = @'T';          // [NSNumber numberWithChar:'T'];
+```
+
+相应的, 对象类型转回标量类型也非常简单, 可以调用 NSNumber 的 intValue, boolValue 等即可.
+
+需要注意的是, OC 中 long 并不是 Java 中的 64 位长整型. 前者是根据系统字长决定 32 位还是 64 位, 而后者则固定式 64 位. 如果想在 OC 中表示 64 位长整型, 需要使用 `long long foo = 123456789L;` 定义. 
+
+##### 通用类型 (id, NSValue)
+* id: 类似于 Java 中的 Object, 可以代表任意类型的指针. 但由于 id 本身代表指针, 所以不需要 '*' 修饰:
+  ```Objective-C
+  id number = @123;       // NSNumber *number = ...
+  id string = @"blalba";  // NSString *string = ...
+  id array = @[@123, @"string", [NSNull null]];  // NSArray *array = ...
+  ```
+* NSValue: 可以代表任何 '保存一个值' 的类型, 比如, 你有一个自定义的结构体(所谓结构体, 跟 '类' 是一样的, 只不过没有方法, 只用作组合多个属性):
+  ```Objective-C
+  typedef struct {
+      int i;
+      float f;
+  } MyIntegerFloatStruct;
+  ```
+  
+  我们可以使用 NSValue 对上述结构体对象化:
+  ```Objective-C
+  struct MyIntegerFloatStruct aStruct;
+  aStruct.i = 42;
+  aStruct.f = 3.14;
+  
+  NSValue *structValue = [NSValue value:&aStruct withObjCType:@encode(MyIntegerFloatStruct)];
+  ```
+  
+  上述例子中, '&' 是 C 语言中 '取地址' 操作. 含义是获取该变量在内存中的地址.
+
+##### 空类型 (nil, Nil, null, NULL, NSNull) 
+```Objective-C
+// nil 代表指向对象的空指针. 一般用于初始化变量
+NSString *str = nil;
+// 也用于集合结束符号使用
+NSArray *arr = [NSArray arrayWithObjects:@0, @1, nil];
+
+// NULL 是 C 语言的空指针.
+char *p = NULL;
+
+// Nil 代表空类. 用于 `Class c = Nil`
+Class class = Nil;
+
+// NSNull 配合 null 代表集合中的空元素
+NSArray *arr2 = [NSArray arrayWithObjects:@0, [NSNull null], @2, nil];
+NSArray *arr3 = @[@0, [NSNull null], @2];
+```
+
+### 集合
+与 Java 类似, 在 OC 中集合管理的都是 '对象类型', 也就是说 NSString, NSNumber 这种类的实例. 
+
+此外, OC 的集合区分可变集合与不可变集合, 比如 NSArray 有对应的 NSMutableArray, NSSet 有对应的 NSMutableSet.
+
+##### 数组 (NSArray)
+OC 数组所存储的对象可以是任何类型, 这一点是与 Java 非常不同的.
+
+![](./assets/oc%20nsarray.png)
+```Objective-C
+NSArray *sameToArr = [NSArray arrayWithObjects:someString, someNumber, someObject, nil];
+```
+不同于传统方法调用中每个参数都会有名字, 数组初始化的语法更类似于 Java 的不定参数函数.
+
+此外, 数组的使用要注意两点:
+1. `arrayWithObjects` 以及 `initWithObjects` 等初始化函数需要以 'nil' 作为结尾
+2. 此外, 一旦遇到 'nil' 则认为提前结束. 也就是说 '[NSArray arrayWithObjects:firstObject, secondObject, ...];' 如果 firstObject 是 nil, 则会被认为是空数组 (好坑 👍)
+
+好在数组也有语法糖, 代码少, 也无需 nil 结尾:
+```Ojbective-C
+NSArray *arr = @[someString, someNumber, someObject];
+```
+
+这里要注意, 语法糖版本的数组初始化, 所有的内容都不能是 nil, 否则引发异常. 空元素使用 [NSNull null] 代替 (无语凝噎 😭):
+```Objective-C
+NSArray *arr = @[@42, [NSNull null], @"some string"];
+```
+
+动态化版本 NSMutableArray 提供了增删改的能力, 常见用法如下:
+```Objective-C
+NSMutableArray *array = @[@42, [NSNull null], @"some string"];
+// 增
+[array addObject:@"new item"];
+// 删
+[array removeObjectAtIndex:2];
+// 改
+[array replaceObjectAtIndex:0 withObject:@"0000"];
+// 查
+[array count];
+[array objectAtIndex:2];
+
+for (id object in array) {
+    NSLog(@"Object: %@", object);
+}
+```
+
+##### NSSet
+![](./assets/oc%20nsset.png)
+
+NSSet 没有语法糖形式:
+```Objective-C
+NSSet *simpleSet = [NSSet setWithObjects:@"Hello, World!", @42, aValue, anObject, nil];
+```
+
+##### 字典 (NSDictionary)
+![](./assets/oc%20nsdictionary.png)
+
+读一遍构造方法的名字你就会发现, OC 的字典语法是反着的: Value-Key: 
+```Objective-C
+NSDictionary *dictionary = [NSDictionary dictionaryWithObjectsAndKeys:
+                    @"value0", @"key0",
+                          @42, @"key1", 
+                    @"value2", @'key2',
+                               nil];
+```
+
+Value 在前, Key 在后...
+
+然语法糖版本的字典, KV 又是正着的: (OC 作者是精神分裂吗)
+```Objective-C
+NSDictionary *dictionary = @{
+                @"key0" : @"value0",
+                @"key1" : @42,
+                @"key2" : @"value2",
+             };
+```
+
+最佳实践要求使用字符串作为 Key, 但其实支持 NSCopying 协议的任何对象都可以成为 key.
+
+动态化版本 NSMutableDictionary 提供了增删改的能力, 常见用法如下:
+```Objective-C
+NSMutableDictionary *dictionary = @{
+                                @"key0": @"value0", 
+                                @"key1": @123,
+                                @"key2": [NSNull null],
+                            };
+// 增/改
+[dictionary setObject:@"new value" forKey:"key999"];
+// 删
+[dictionary removeObjectForKey:@"key2"];
+// 查
+[dictionary count];
+[dictionary objectForKey:@"key1"];
+
+for (NSString *key in dictionary) {
+    id object = dictionary[key];
+    NSLog(@"Object: %@ -> %@", key, object);
+}
+```
+
+### 常用类
+* NSLog: 在 console 中打印日志, 类似 println.
+
+### 变量弱引用 (__weak)
+对于指针, 在使用的时候需要注意一点, 就是避免 *循环强引用 (strong reference cycles)*. 因为 OC 是基于引用计数实现的内存管理, 所以循环引用会导致相关的对象都无法被 gc 回收. 我们来举个例子:
+```Objective-C
+// 循环引用, 导致 gc 无法回收任何对象而发生内存泄漏
+NSDate *originalDate = self.lastModificationDate;
+self.lastModificationDate = [NSDate date];
+```
+
+正确的做法是在循环引用中使用弱引用:
+```Objective-C
+// 正确处理
+NSDate * __weak originalDate = self.lastModificationDate;
+self.lastModificationDate = [NSDate date];
+```
+
+弱引用的对象在被销毁后, 变量会被自动设置为 nil, 因此在使用弱引用时一般无需判空.
+
+# Function
+
+### 函数定义
+先来看个例子:
+
+```java
+// Java
+public class JavaClass {
+
+    public int foo(int i, String s) {
+        ...
+    }
+
+}
+```
+
+对应到 OC 的代码:
+```Objective-C
+// OC .m File
+- (int)bar:(int)i str:(String s) {
+    ...
+}
+```
+
+主要看函数声明部分. 对于 OC 而言, 可以拆分为如下几个部分:
+
+![](./assets/oc%20function%20signature.png)
+
+与 Java 的函数不同, OC 语言并不支持函数重载 (overload), 函数签名仅仅由函数名决定. 而 OC 的函数名比较复杂, 是由多个 `foo:(int)i` 与 `bar:(NSString *)str` 这种 '部分函数名 : 参数描述' 的 Key-Value 结构组成的. 
+
+OC 的函数签名, 就是把多个分组的函数名拼在一起, 比如上面的函数签名对应为: `foo:bar:`. 
+
+可见, OC 函数只包含函数名部分, 无论是 *返回值* 还是 *函数参数类型* 都不是决定函数签名的因素.
+
+### 函数调用
+在 OC 中, 没有 *函数调用* 这个概念. 如果想调用另一个函数的某个方法, 在 OC 世界中叫做给某个对象 *发消息*. 语法对比如下:
+
+```java
+// Java
+obj.someMethod(123, "blabla");
+```
+
+对比 OC
+```Objective-C
+// OC
+[obj someMethod:123 otherParam:"blabla"];
+```
+
+上面的 OC 代码翻译为: *向 obj 对象发送 'someMethod 参数为 123' 且 'otherParam 参数为 "blabla"' 的消息*. 
+
+函数也支持嵌套调用, 比如我们常见的创建对象的方法:
+```Objective-C
+// OC
+MyClass *my = [[MyClass alloc] init];   // 相当于 Java: MyClass my = new MyClass();
+```
+
+首先是 `[MyClass alloc]` 分配内存, 其返回值就是 MyClass 对象. 然后在该对象上继续调用 `init` 方法初始化.
+
+### 匿名函数 (Block)
+匿名函数是 language-level 的一个扩展. 在 OC 中, 匿名函数也是一个对象, 因此你可以将它作为参数传递给别的函数, 或者存储在 NSArray 中.
+
+##### Block 变量声明与定义
+```Objective-C
+NSString *(^bar)(double, double) = ^ NSString *(...) {
+    ...
+}
+```
+首先是返回值类型, 然后用括号包住 ^(脱字符) 与变量名, 最后是 C 风格的参数声明
+
+```Objective-C
+^ NSString *(double firstValue, double secondValue) {
+    return [NSString stringWithFormat:@"%f", firstValue * secondValue];
+}
+```
+使用 ^(脱字符) 开始一段 Block 的定义, 接着返回值类型, 然后是 C 风格的参数声明(无参可以省略括号和其中的内容), 最后是函数体.
+
+来看个例子:
+```Objective-C
+// 无参函数可以省略定义的参数部分
+void (^foo)() = ^ {
+    ...
+}
+
+// 编译器自动推测返回值, 在定义部分可以省略
+NSString *(^bar)(double, double) = ^ (double x, double y) {
+    return @"fdsaf";
+};
+```
+
+##### 作为类属性的 Block
+```Objective-C
+@interface XYZObject : NSObject
+@property (copy) void (^blockProperty)(void);
+@end
+```
+就是需要加上 copy 标记, 用来保持捕获的外部变量状态. 这个 copy 也可以省略, 编译器会自动给你加上. 最佳实践建议我们显示书写 copy.
+
+此外, 还需小心处理循环引用问题, 最佳实践是在 Block 中使用 weak 引用外部类 self:
+```Objective-C
+- (void)configureBlock {
+    XYZBlockKeeper * __weak weakSelf = self;
+    self.block = ^{
+        [weakSelf doSomething];   // capture the weak reference
+                                  // to avoid the reference cycle
+    }
+}
+```
+这里无需对 weakSelf 进行判空, 因为弱引用的对象一旦销毁, 会被自动设置为 nil, 而对 nil 的任何方法调用会被直接跳过. 这是与 Java 使用弱引用的一点差别.
+
+##### 捕获外部变量 (Capture from Enclosing Scope)
+Block 所捕获的变量实际上是在 Block 定义的时候, 对所有捕获变量进行了一份拷贝, 因此 Block 定义的时候就已经决定变量的值. 如下:
+```Objective-C
+int i = 1;
+void (^foo)() = ^ {
+    // 在定义此 Block 的时候, 外部的 i 被拷贝了一份, 因此后续在外部改变 i 并不影响这里 Block 内部的值.
+    // i 是不可变的, 不能被重新赋值
+    NSLog(@"%d", i);
+};
+
+foo();      // 1
+
+i++;
+foo();      // 1
+```
+两次输出都是 1. 因为在 foo 定的时刻, i 的值是 1.
+
+也正是因为捕获的机制问题, 所有捕获的变量在 Block 内部是不可变的.
+
+如果想共享外部捕获的变量, 需要使用 '__block' 声明变量:
+```Objective-C
+__block int i = 1;
+void (^foo)() = ^ {
+    // i 可以被共享, 这里也可以重新赋值, 并影响外部
+    NSLog(@"%d", i++);
+};
+
+foo();      // 1
+
+i++;
+foo();      // 3
+```
+
+##### 别名 
+可以使用 typedef 来定义复杂的 Block 类型, 例如:
+```Objective-C
+void (^(^complexBlock)(void (^)(void)))(void) = ^ (void (^aBlock)(void)) {
+    ...
+    return ^{
+        ...
+    };
+};
+```
+可以简化为:
+```Objective-C
+typedef void (^XYZSimpleBlock)(void);
+XYZSimpleBlock (^betterBlock)(XYZSimpleBlock) = ^ (XYZSimpleBlock aBlock) {
+    ...
+    return ^{
+        ...
+    };
+};
+```
+
+# 类与继承 (Class & Inheritance)
+OC 是 C 语言的超集, 因此也区分 *头文件(Header File, 文件名为 Xxx.h)* 和 *实现文件(Implementation File, 文件名为 Xxx.m)*. 前者是用于声明某个模块或者类 *具备哪些公共属性和方法*, 后者用于具体的实现. 因此, 类的公共属性和方法应该放在头文件中, 私有属性和方法以及所有的具体实现应该放在实现文件中. 
+
+我们来对比看一下语法:
+```java
+// Java
+public class JavaClass {
+    public int mSomeValue;
+    private String mAnotherValue;
+
+    public void foo() {
+        // ...
+    }
+
+    private void bar() {
+        // ...
+    }
+}
+```
+
+```Objective-C
+// OC 头文件
+#import <Foundation/Foundation.h>
+
+@interface OCClass : NSObject {
+    NSString *anotherValue;
+}
+
+@property int someValue;
+
+- (void)foo;
+
+@end
+```
+```Objective-C
+// OC 实现文件
+@implementation
+
+- (void)foo {
+    // ...
+}
+
+- (void)bar {
+    // ...
+}
+@end
+```
+
+OC 使用 '@interface ... @end' 作为声明类的关键字, `: NSObject` 是指继承自 'NSObject' 这个类, 因为 OC 必须要写基类, 所以必须要加上这段.
+
+'antoerhValue' 即可以写在 interface 中也可以写在 implementation 中, 我个人感觉两者是等价的. 此外, 还可以写在 [扩展类](#类增强%20(Category%20&%20Extension)) 里面, 后面会提到.
+
+### @property
+在 OC 头文件中, 通过 `@property` 指定类的属性. 编译期遇到 `@property` 默认会做两件事:
+1. 生成类的真实属性, 并加以 `_` 前缀, 例如: `@property int someValue` 会给类生成 '_someValue' 的属性.
+2. 生成上述属性的 getter/setter 方法(如果没有的话). getter: `- (int) someValue();` 以及 setter: `- (void)setSomeValue:(int)i;`
+
+例如:
+```Objective-C
+// OCClass.h
+#import <Foundation/Foundation.h>
+
+@interface OCClass : NSObject
+
+@property int someValue;
+@property int anotherValue;
+
+@end
+```
+
+今后就可以这样使用:
+```Objective-C
+OCClass *ocClass = ...;
+
+[ocClass setSomeValue:1234];
+NSLog(@"%d", [ocClass getSomeValue]);
+```
+
+也正是上述原因, 在 OC 中类的属性一般都是 xxxYyy 直接命名, 而不带 Java 中常见的 'm' 前缀.
+
+有很多描述符可以改变编译器对于 @property 的行为, 我们来看一下 @property 的完全态:
+
+```Objective-C
+@property   (方法名, 读写权限, 内存管理语义, 原子性)   变量类型   变量名;
+```
+默认情况下:
+```Objective-C
+@property (readwrite, assign, atomic) 变量类型 变量名;
+```
+
+各个标记的作用参见下表:
+
+<table>
+  <tr>
+    <th>分类</th>
+    <th>标记</td>
+    <th>作用</td>
+  </tr>
+
+  <tr>
+    <th rowspan="2">方法名</th>
+    <td>getter = xxx</td>
+    <td>重命名 getter 方法</td>
+  </tr>
+  <tr>
+    <td>setter = xxx</td>
+    <td>重命名 setter 方法</td>
+  </tr>
+
+  <tr>
+    <th rowspan="2">读写权限</th>
+    <td>readwrite</td>
+    <td>默认值. 编译器自动生成 getter/setter 方法</td>
+  </tr>
+  <tr>
+    <td>readonly</td>
+    <td>编译器仅生成 getter 方法</td>
+  </tr>
+
+  <tr>
+    <th rowspan="2">内存管理语义</th>
+    <td>strong</td>
+    <td>默认值</td>
+  </tr>
+  <tr>
+    <td>weak</td>
+    <td>由于 OC 的 GC 基于引用计数, 因此需要手动管理引用避免 Strong Reference Cycles. 参见: https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/EncapsulatingData/EncapsulatingData.html 中 'Avoid Strong Reference Cycles' 小节</td>
+  </tr>
+  <tr>
+    <td>copy</td>
+    <td>自动调用参数的 copy 方法, 因此该属性必须支持 NSCopying 协议</td>
+  </tr>
+
+  <tr>
+    <th rowspan="2">原子性</th>
+    <td>atomic</td>
+    <td>默认值. 编译器内部实现, 保证读写属性的原子性. 这个属性比较消耗性能, 因此一般都会使用 nonatomic</td>
+  </tr>
+  <tr>
+    <td>nonatomic</td>
+    <td>一旦自己提供了该属性的 setter 方法, 则编译器无法为该属性自动实现原子性的 getter 方法. 因此需要这个标记消除编译器警告, 同时也用于提示该属性并不保证原子性</td>
+  </tr>
+
+</table>
+
+### @synthesize
+此外, 我们还可以通过在实现文件中的 `@synthesize` 关键字修改编译器生成的类属性的名字. 例如:
+
+```Objective-C
+// OCClass.m
+#import "OCClass.h"
+
+@implementation
+
+@synthesize someValue;              // 不加任何赋值的情况下, 编译器直接生成同名属性而不会添加 '_' 前缀
+@synthesize anotherValue = fooBar;     // 编译器将生成 'fooBar' 的属性, 并将 'anotherValue' 的 getter/setter 方法对应到这个属性
+
+@end
+```
+
+'@synthesize' 仅仅影响类真实属性的名字(即 '@property' 第一步的行为), 而不影响 getter/setter 的名字.
+
+最佳实践是: 除了在 initialization, deallocation 或者 自定义的 getter/setter 方法中, 尽可能的使用点号操作符和 getter/setter 方法, 即便是在当前类的实现中.
+
+其他怪异行为: 一般情况下 '@property' 都会生成类的真实属性. 然而 *如果 readwrite 的属性, 同时自定义了 getter/setter* 或者 *readonly 属性却自定义了 getter 方法*, 则编译器就不会自动为我们创建类的真实属性. 如果你仍然需要这个真实属性的存在, 可以在实现文件中使用 '@synthesize property = _property;' 强制编译器生成. 
+
+### .(点号) 运算符
+OC 中增加一种语法糖, 即 *.(点号) 运算符*, 如下:
+```Objective-C
+NSLog(somePerson.firstName);        // 等价于 NSLog([somePerson getFirstName]);
+somePerson.firstName = @"Johnny";   // 等价于 [somePerson setFirstName:@"Johnny];
+```
+
+其实点号运算符就是 getter/setter 的 wrapper. 
+
+### 初始化 (构造函数)
+准去的说, 在 OC 中没有构造函数这个概念, 所有对象的初始化由一个 `- (id)init:` 函数完成. 以下是一个标准模板:
+```Objective-C
+- (id)init { 
+    if (self = [super init]) {
+        // initialize instance variables here
+    }
+ 
+    return self;
+}
+```
+
+也可以自己定义初始化函数. 但是多个初始化函数之间应该有一个 '主要初始化函数' 负责所有类属性的初始化, 而其他初始化函数都应该委托主要初始化函数完成初始化工作. 
+
+```Objective-C
+@implementation
+
+- (id)init {
+    return [self initWithSomeValue:123 anotherValue:456];
+}
+
+- (id)initWithSomeValue:(int)i anotherValue:(int)i2 {
+    if (self = [super init]) {
+        // initialize instance variables here
+        _someValue = i;
+        _anotherValue = i2;
+    }
+
+    return self;
+}
+
+@end
+```
+
+# 类增强 (Category & Extension)
+### 分类 (Category)
+'分类' 用于给某个已存在的类添加方法, 无论是 Framework 的类(比如 NSString) 还是我们自己写的类. 但要注意的是, Category 只能用于增加方法, 而不能增加属性. 用法如下:
+```Objective-C
+// NSString+Xxx.h
+@interface NSString (Xxx) 
+
+- (void)newMethod;
+
+@end
+```
+```Objective-C
+// NSString+Xxx.m
+@implementation NSString (Xxx)
+
+- (void)newMethod {
+    //
+}
+
+@end
+```
+
+一般来说, 分类都是以 '原有类名+分类类名' 命名的. 其实分类类名并没有什么卵用, 只是为了语义比较清楚.
+
+使用的时候, 凡是需要使用到分类提供的方法时, 都需要 import 分类的头文件, 例如:
+```Objective-C
+// 
+#import "NSString+Xxx.h"
+
+...
+
+NSString *str = @"blabla";
+[str newMethod];
+
+...
+```
+
+##### 避免方法名冲突
+根据官方文档描述, 如果 Category 与原有类方法重名(无论是原有方法还是继承来的方法), 或者与其他 Category 方法名冲突, 则在 Runtime 期间的行为是不可预知的. 
+
+有时我们引入了 A 类库, 它为 NSString 增加了某个方法. 后来你又引入了 B 库, 而 B 库恰好也为 NSString 引入了同名的方法. 这时最容易引发未知的问题. 因此我们要避免发生方法名冲突.
+
+官方建议新方法都加前缀, 如 'xyz_newMethod'. 
+
+### 扩展 (Extension)
+'扩展' 用于给既有类增加私有属性. 但是只能给 *已有源码的类* 增加属性. 因为 '扩展' 的原理是最终与原有类一起进行编译, 因此我们只能扩展可以看到源码并进行编译的类.
+
+扩展的代码要写在类的实现文件中:
+```Objective-C
+// OCClass.m
+@interface OCClass () 
+
+// 这里扩展新的属性
+@property int z;
+
+@end
+
+@implementaion OCClass 
+
+...
+
+@end
+```
+
+当然, 你也可以把扩展的代码写在单独的一个 .h 文件中, 然后再 .m 文件中 import 即可. 在 OC 中一种很常见的模式就是一个类有两个头文件:  'Xxx.h' 和 'XxxPrivate.h'.
+
+在 Extension 中增加的属性在其他类中是无法引用的, 因此 Extension 的作用就是给类增加私有属性.
+
+由于 Extension 和 Category 语法结构一致, 除了没有名字. 因此也被称为 '匿名分类(Anonymous Categories)'.
+
+# 接口 (Protocol)
+OC 中用 `@protocol` 定义接口, 例如:
+```Objective-C
+@protocol MyProtocol
+
+- (void)foo;
+
++ (void)bar;
+
+@end
+```
+
+然后我们通过特定的语法实现接口:
+```Objective-C
+// MyClass.h
+@interface MyClass : NSObject <MyProtocol, MyProtocol2, ...>
+
+...
+
+@end
+```
+
+接口的使用语法上也比较特殊, 任何 '接口对象' 都必须是 `id` 类型, 同时表明该对象所实现的接口:
+```Objective-C
+id <MyProtocol> my = ...;
+[my foo];
+```
+
+### 可选方法 (@optional)
+默认情况下接口中的方法都是必选的(@required), 不过接口中的方法也可以是可选实现的. 例如:
+```Objective-C
+@protocol OptProtocol <NSObject>
+
+- (void)foo;
+
+@optional
+- (void)optFunc1;
+- (void)anotherOptFunc2;
+
+@required
+- (void)bar;
+- (void)baz;
+
+@end
+```
+'@optional' 后面的方法都是可选的(例子中的 `optFunc1:` 和 `optFunc2:`), 除非显示使用 '@required' 重新定义为必选的.
+
+这个例子中多了 `<NSObject>`. 意思是让 `OptProtocol` 继承自 `NSObject`. 不过这里的 'NSObject' 是 `@protocol NSObject` 而不是我们之前见到的 `@interface NSObject` 类. 
+
+让我们的 OptProtocol 继承自 NSObject 的目的就是在使用可选方法时, 提供检查可选方法是否存在的能力:
+```Objective-C
+MyClass *myClass = ...;
+if ([myClass respondsToSelector:@selector(optFunc1:)]) {
+    ...
+}
+```
+
+# 错误处理 (Error Handling)
+OC 中有两类错误处理方法, 一种是传统 C 的 '通过返回值和参数反馈错误', 另一种是类似 Java 中的异常机制. 
+
+### 返回错误 (NSError)
+NSError 包含:
+* domain 错误的分类. 有很多内置分类, 也可以用户定义自己的分类
+* code 错误码
+* dict 错误的具体数据. 其中 'NSLocalizedDescriptionKey' 是一个固定 key, 用于描述错误的内容
+
+一般这种方式都是在已知错误的情况下, 认为发生了不合理的现象来进行提示.
+
+```Objective-C
+NSError *anyError;
+BOOL success = [receivedData writeToURL:someLocalFileURL options:0 error:&anyError];
+if (!success) {
+    // 通常使用 localizedDescription 方法快速获取错误描述
+    NSLog(@"Write failed with error: %s", [anyError localizedDescription]);
+}
+```
+
+首先定义一个接收错误的指针, 如果函数发生错误, 则会对指针赋值, 使其指向错误对象(NSError) 描述具体错误.
+
+注意 `writeToURL:options:errors:` 中传入的是 '&anyError'(即 anyError 的地址).
+
+### 异常机制 (NSException)
+NSException 代表运行期间无法预知的 bug 导致, 与 Java 异常一致.
+
+```Objective-C
+@try {
+    // do something that might throw an exception
+}
+@catch (NSException *exception) {
+    // deal with the exception
+}
+@finally {
+    // optional block of clean-up code
+    // executed whether or not an exception occurred
+}
+```
+
+# 代码规范
+
+### 命名
+##### 尽量少用缩写, 除非是明确且公认的
+参考官方给出的缩写整理: [Acceptable Abbreviations and Acronyms
+](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/CodingGuidelines/Articles/APIAbbreviations.html#//apple_ref/doc/uid/20001285)
+
+##### 类前缀
+OC 中所有的类都在一个空间下, 因此不能重名. 系统的类都会带有两个字符的前缀, 例如:
+| Prefix | Framework |
+| :-: | :- |
+| NS | Foundation (OS X and iOS) and Application Kit (OS X) | 
+| UI | UIKit (iOS) |
+| AB | Address Book |
+| CA | Core Animation |
+| CI | Core Image |
+| CG | Core Graphics |
+
+用户自定义类要求用三个字符作为前缀, 例如 XYZFoo ('XYZ' 是前缀).
+
+##### 分类前缀 (Category Prefix)
+在分类中, 方法必须要加前缀来避免命名冲突. 
+
+##### getter 方法要与属性同名, Bool 类型属性的 getter 方法加 'is' 前缀
+```Objective-C
+@interface Foo : NSObject
+
+@property (getter = isFinished) Bool finished;
+
+- (Bool)isFinished;
+
+@end
+```
+
+##### 工厂方法
+正如 `[NSArray array]` 或者 `[NSArray arrayWithObject:]` 工厂方法, 命名都是以没有前缀的类名作为方法的前缀.
+
+### 其它
+##### 避免在 enclosing scope 中定义外部同名变量
+```Objective-C
+- (void)someMethod {
+    int interestingNumber = 42;
+    ...
+    for (NSNumber *eachNumber in array) {
+        int interestingNumber = [eachNumber intValue]; // not advisable
+        ...
+    }
+}
+```
+
+上述代码中 'interestingNumber' 在someMethod 和 for 两个 scope 中都有定义, 虽然是合法的语句, 但是容易让使用者产生疑惑. 应该避免.
+
+### 需要返回 NSError 的函数
+```Objective-C
+- (BOOL)writeToURL:(NSURL *)fileURL error:(NSError * _Nullable *)outError;
+```
+
+返回值 + 最后一个参数 NSError.
+
+# Refs
+[官方 Programming with Objective-C](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/Introduction/Introduction.html#//apple_ref/doc/uid/TP40011210)
+
+[官方 Objective-C Runtime Programming Guide](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ObjCRuntimeGuide/Introduction/Introduction.html#//apple_ref/doc/uid/TP40008048-CH1-SW1)
+
+[官方 Objective-C Runtime](https://developer.apple.com/documentation/objectivec/objective-c_runtime)
+
+[官方 Transitioning to ARC Release Notes](https://developer.apple.com/library/archive/releasenotes/ObjectiveC/RN-TransitioningToARC/Introduction/Introduction.html#//apple_ref/doc/uid/TP40011226)
