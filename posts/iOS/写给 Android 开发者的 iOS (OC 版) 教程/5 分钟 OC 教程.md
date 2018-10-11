@@ -60,7 +60,7 @@ for (id object in array) {
 // 可变数组
 NSMutableArray *mutableArray = @[@123, @456, @"text"];
 // 增
-[mutableArray add:@"new item"];
+[mutableArray addObject:@"new item"];
 // 删
 [mutableArray removeObjectAtIndex:2];
 // 改

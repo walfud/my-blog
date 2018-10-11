@@ -1,6 +1,8 @@
 | iOS | Android | 描述 |
 | :-: | :-: | :------ |
 | ipa | apk | 安装包 |
+| CocoaPods | Gradle(部分依赖管理功能) | 三方库递归依赖管理工具 |
+| 一个 '工程(Workspace)' 包含多个 '项目(Project)' | 一个 '项目(Project)' 包含多个 '模块(Module)' | iOS 的 '工程' 就是 Android 的 '项目' <br /> 而 iOS 的 '项目' 就是 Android 的 '模块' |
 | Info.plist | AndroidManifest.xml | 清单文件 |
 
 ### APP 会被立刻 Kill 的行为
