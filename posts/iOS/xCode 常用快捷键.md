@@ -1,3 +1,5 @@
+![](./assets/keymap.png)
+
 <table>
   <tr>
     <th>分类</th>
@@ -9,6 +11,12 @@
     <th rowspan="1">光标定位</th>
     <td>Ctrl + Cmd + ←/→</td>
     <td>跳转到上/下一个位置</td>
+  </tr>
+
+  <tr>
+    <th rowspan="1">导航定位</th>
+    <td>Cmd + Shift + L</td>
+    <td>打开 Object Library</td>
   </tr>
 
   <tr>
