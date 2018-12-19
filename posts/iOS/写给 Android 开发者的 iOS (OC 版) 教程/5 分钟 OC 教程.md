@@ -5,6 +5,37 @@ NSNumber *d = @1.23;            // double d = 1.23;
 NSString *s = @"I'm string";    // char *s = "I'm string";
 ```
 
+### 空类型
+OC 有 nil, null, NULL, NSNULL 四种空类型. 用法如下:
+```Objective-C
+// 所有指针对象的初值, 类似于 Java 的 null
+NSString *str = nil;    
+
+// 唯一的作用就是作为集合元素中, 代表空元素
+// 因为在 OC 集合中 nil 代表结束符号
+@[@123, @456, [NSNull null], @789];
+
+// 仅用于 C 语言兼容部分
+char *pStr = NULL;
+```
+
+### 枚举
+```Ojbective-C
+// 排他性, 一般用于表明某种 '状态'
+typedef NS_ENUM(NSInteger, XYZStatus) {
+    XYZStatusOK = 0,
+    XYZStatusFail,
+    XYZStatusCancel,
+};
+
+// 一般用于组合某些 '选项'
+typedef NS_OPTIONS(NSUInteger, XYZLang) {
+    XYZLangC   =      1,
+    XYZLangCPP = 1 << 1,
+    XYZLangJS  = 1 << 2,
+};
+```
+
 # 函数
 ![](./assets/oc%20function%20signature.png)
 
@@ -47,6 +78,17 @@ sharedVar++;        // outterVar == 2
 foo(@1, @1);        // 1 + 1 + 2 == 4. 共享外边的变量
 ```
 
+此外, 还有作为参数和属性的 Block, 语法上略有差别:
+```Objective-C
+@interface XYZObject : NSObject
+
+@property (copy) void (^blockProperty)(void);
+
+- (void)foo:(NSString *(^)(int, int));
+
+@end
+```
+
 # 集合 (Collection)
 OC 的集合类型可以容纳任意类型的元素, 相当于 Java 中的 Array<Object>.
 ```Objective-C
@@ -58,7 +100,7 @@ for (id object in array) {
     NSLog(@"Object: %@", object);
 }
 // 可变数组
-NSMutableArray *mutableArray = @[@123, @456, @"text"];
+NSMutableArray *mutableArray = [@[@123, @456, @"text"] mutableCopy];
 // 增
 [mutableArray addObject:@"new item"];
 // 删
@@ -85,11 +127,11 @@ for (NSString *key in dictionary) {
     NSLog(@"Object: %@ -> %@", key, object);
 }
 // 可变字典
-NSMutableDictionary *mutableDictionary = @{
+NSMutableDictionary *mutableDictionary = [@{
                 @"key0" : @"value0",
                 @"key1" : @42,
                 @"key2" : @"value2",
-             };
+             } mutableCopy];
 // 增/改
 [mutableDictionary setObject:@"new value" forKey:"key999"];
 // 删
@@ -130,7 +172,7 @@ NSMutableDictionary *mutableDictionary = @{
 
 使用方法:
 ```Objective-C
-OCClass *ocClass = [[OCClass alloc] init];
+OCClass *ocClass = [OCClass new];   // [[OCClass alloc] init]
 
 // 读写实例属性
 int i = ocClass.someValue;      // 调用 getter 方法语法糖, 相当于: [ocClass i]
@@ -236,3 +278,123 @@ NSString *str = @"blabla";
 
 @end
 ```
+
+# 反射
+OC 中也存在 Class 类, 与 Java 中的 Class 作用相同. 但是在 OC 中, 方法使用 SEL 类型变量. 反射最终通过对象的 ‘performSelector’ 执行.
+```Objective-C
+Class klass = NSClassFromString(@"UIView");
+UIView *v = [[klass alloc] initWithFrame:CGRectMake(20, 20, 120, 120)];
+[self.view addSubview:v];
+
+SEL sel = @selector(setBackgroundColor:);
+[v performSelector:sel withObject:[UIColor redColor]];
+```
+performSelector 仅支持 ‘无参’, ‘一个参数’, ‘俩个参数’ 形式. 如果方法无参或多余一个参数, 则需要使用更底层的 NSInvocation 形式:
+```Objecive-C
+// [foo withFirstArg:@1 second:@2 third:@3 fourth:@4]
+Foo *foo = [[Foo alloc] init];
+SEL sel = @selector(withFirstArg:second:third:fourth:);
+NSMethodSignature *methodSignature = [Foo.class instanceMethodSignatureForSelector:sel];
+
+// 带调用的方法
+NSInvocation *invocation = [NSInvocation invocationWithMethodSignature:methodSignature];
+[invocation setTarget:foo];
+[invocation setSelector:sel];
+
+// 设置参数. index 从 2 开始
+id arg1 = @1, arg2 = @2, arg3 = @3, arg4 = @4;
+[invocation setArgument:&arg1 atIndex:2];
+[invocation setArgument:&arg2 atIndex:3];
+[invocation setArgument:&arg3 atIndex:4];
+[invocation setArgument:&arg4 atIndex:5];
+
+// 发起调用
+[invocation invoke];
+
+// 返回值
+id rtn = nil;
+[invocation getReturnValue:&rtn];
+```
+
+# KVO
+在 OC 中, KVO 通过观察者模式, 可以监控 "对象的属性" 的改变. 比如: 某个属性的值被修改了, 这时会通过回调通知你.
+
+1. 假如有一个普通的类, 包含两个属性
+   
+  ```Objective-C
+  // KVO.h
+  
+  #import <Foundation/Foundation.h>
+  
+  @interface KVO : NSObject
+  
+  @property (nonatomic, copy) NSString *a;
+  @property (nonatomic, assign) int b;
+  
+  @end
+  ```
+  ```Objective-C
+  // KVO.m
+  
+  #import "KVO.h"
+  
+  @implementation KVO
+  @end
+  ```
+  
+2. 接下来使用 KVO 进行监听变化.
+
+  ```Objective-C
+  - (void)viewDidLoad {
+      [super viewDidLoad];
+      
+      // 观察 KVO 对象
+      KVO *obj = [KVO new];
+      [obj addObserver:self forKeyPath:@"a" options:(NSKeyValueObservingOptionOld | NSKeyValueObservingOptionNew) context:nil];
+      [obj addObserver:self forKeyPath:@"b" options:(NSKeyValueObservingOptionOld | NSKeyValueObservingOptionNew) context:nil];
+      
+      // 触发 KVO 通知
+      obj.a = @"new string";
+      obj.b = 1234;
+      
+      // 移除观察者
+      [obj removeObserver:self forKeyPath:@"a"];
+      [obj removeObserver:self forKeyPath:@"b"];
+  }
+  
+  - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary *)change context:(void *)context
+  {
+      if ([object isKindOfClass:[KVO class]]) {
+          if ([keyPath isEqualToString:@"a"]) {
+              NSLog(@"'a' change: %@ -> %@", change[NSKeyValueChangeOldKey], change[NSKeyValueChangeNewKey]);
+          } else if ([keyPath isEqualToString:@"b"]) {
+              NSLog(@"'b' change: %@ -> %@", change[NSKeyValueChangeOldKey], change[NSKeyValueChangeNewKey]);
+          }
+      }
+  }
+  ```
+
+# 运行时类型判断
+```Objective-C
+UILabel *label = [[UILabel alloc] init];
+
+// ’isKindOfClass‘ 判断子类实例, 类似 Java 的 `instanceof`
+[label isKindOfClass:[UIView class]];       // YES
+[label isKindOfClass:[UIImage class]];      // NO
+
+// ’isMemberOfClass‘ 判断当前类实例, Java 中没有对应的方法. 
+[label isMemberOfClass:UILabel.class];      // YES
+[label isMemberOfClass:UIView.class];       // NO
+
+// 当前对象是否遵守某协议
+[label conformsToProtocol:@protocol(UIContentSizeCategoryAdjusting)];       // YES
+[label conformsToProtocol:@protocol(UIContentContainer)];      // NO
+
+// 当前对象是否实现这个方法或存在这个属性
+[label respondsToSelector:@selector(@"initWithFrame:)];       // YES. 方法
+[label respondsToSelector:@selector(@"backgroundColor)];       // YES. 属性
+[label respondsToSelector:@selector(@"fooooo:)];      // NO
+```
+
+# Refs
+[国外精简教程](http://cocoadevcentral.com/d/learn_objectivec/)
