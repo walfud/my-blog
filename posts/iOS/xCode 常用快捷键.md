@@ -14,9 +14,23 @@
   </tr>
 
   <tr>
-    <th rowspan="1">导航定位</th>
+    <th rowspan="2">导航定位</th>
+    <td>Cmd + Shift + J</td>
+    <td>在导航栏定位当前打开文件</td>
+  </tr>
+  <tr>
     <td>Cmd + Shift + L</td>
     <td>打开 Object Library</td>
+  </tr>
+
+  <tr>
+    <th rowspan="2">折叠</th>
+    <td>Cmd + Alt + Shift + ←/→</td>
+    <td>折叠/展开 全部</td>
+  </tr>
+  <tr>
+    <td>Cmd + Alt + ←/→</td>
+    <td>折叠/展开 当前函数</td>
   </tr>
 
   <tr>
